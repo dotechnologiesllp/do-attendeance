@@ -3,15 +3,17 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
+type CookieToSet = { name: string; value: string; options?: Record<string, unknown> };
+
 /** Supabase client acting as the signed-in user (RLS applies). */
 export async function supabaseServer() {
   const store = await cookies();
   return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       getAll: () => store.getAll(),
-      setAll: (list) => {
+      setAll: (list: CookieToSet[]) => {
         try {
-          list.forEach(({ name, value, options }) => store.set(name, value, options));
+          list.forEach(({ name, value, options }) => store.set(name, value, options as never));
         } catch {
           /* called from a Server Component: middleware refreshes the session instead */
         }
