@@ -56,8 +56,9 @@ export default function EmployeeHome() {
     return nearestOffice(geo.lat, geo.lng, data.offices);
   }, [data, geo]);
 
-  const inside = !!where && geo.kind === "fix" && where.distance <= where.office.radius_m && geo.accuracy <= where.office.radius_m;
-  const lowAccuracy = !!where && geo.kind === "fix" && geo.accuracy > where.office.radius_m;
+  const accLimit = (r: number) => Math.max(r, 20); // GPS cannot be better than ~20 m reliably, so very small radii still accept a 20 m reading
+  const inside = !!where && geo.kind === "fix" && where.distance <= where.office.radius_m && geo.accuracy <= accLimit(where.office.radius_m);
+  const lowAccuracy = !!where && geo.kind === "fix" && geo.accuracy > accLimit(where.office.radius_m);
 
   // Auto check-out: if the employee is clearly outside the office radius for 30 s while the app is open,
   // ask the server to close the open session. (A web app cannot track location once it is closed.)
@@ -65,7 +66,7 @@ export default function EmployeeHome() {
   const autoBusy = useRef(false);
   useEffect(() => {
     const clearlyOutside = isIn && geo.kind === "fix" && !!where
-      && geo.accuracy <= where.office.radius_m && where.distance - geo.accuracy > where.office.radius_m;
+      && geo.accuracy <= accLimit(where.office.radius_m) && where.distance - geo.accuracy > where.office.radius_m;
     if (!clearlyOutside || geo.kind !== "fix") { outsideSince.current = null; return; }
     const now = Date.now();
     if (outsideSince.current === null) outsideSince.current = now;
