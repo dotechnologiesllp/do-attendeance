@@ -92,12 +92,23 @@ function ImportCsv({ open, onClose, offices, onDone }: { open: boolean; onClose:
   const [rows, setRows] = useState<(EmployeeInput | string)[] | null>(null);
   const [results, setResults] = useState<{ row: number; name: string; error?: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setRows(null); setResults(null); } }, [open]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  useEffect(() => { if (open) { setRows(null); setResults(null); setFileError(null); } }, [open]);
 
   async function onFile(f: File) {
-    const cells = parseCsv(await f.text());
-    if (cells.length < 2) { setRows([]); return; }
+    setFileError(null);
+    const text = await f.text();
+    const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/)[0] ?? "";
+    const delim = !firstLine.includes(",") && firstLine.includes(";") ? ";" : !firstLine.includes(",") && firstLine.includes("\t") ? "\t" : ",";
+    const cells = parseCsv(text, delim);
+    if (cells.length < 2) { setRows(null); setFileError("The file has no data rows. Fill in the template and try again."); return; }
     const head = cells[0].map((h) => h.trim().toLowerCase());
+    const missing = ["name", "password"].filter((h) => !head.includes(h));
+    if (missing.length || !(head.includes("email") || head.includes("phone"))) {
+      setRows(null);
+      setFileError(`The first row must be the column names. Missing: ${[...missing, ...(head.includes("email") || head.includes("phone") ? [] : ["email or phone"])].join(", ")}. Use "Download template" and keep its first row.`);
+      return;
+    }
     const byName = new Map(offices.map((o) => [o.name.toLowerCase(), o.id]));
     setRows(cells.slice(1).map((c) => {
       const rec: Record<string, string> = {};
@@ -135,6 +146,7 @@ function ImportCsv({ open, onClose, offices, onDone }: { open: boolean; onClose:
           <p className="mb-3 text-sm text-muted">Columns: {CSV_HEADERS.join(", ")}. Salary in rupees. Separate several offices with “;”.</p>
           <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
             className="block w-full text-sm file:mr-3 file:h-10 file:rounded-xl file:border-0 file:bg-soft file:px-4 file:font-medium" />
+          {fileError && <p className="mt-3 text-sm text-rose-600">{fileError}</p>}
           {rows && (
             <ul className="mt-4 max-h-72 space-y-1 overflow-y-auto text-sm">
               {rows.map((r, i) => (

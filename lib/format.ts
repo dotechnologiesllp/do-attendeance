@@ -144,7 +144,7 @@ export function toCsv(headers: string[], rows: unknown[][]) {
 }
 
 /** Minimal RFC 4180 CSV parser (quotes, commas and newlines inside quotes). */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, delim = ","): string[][] {
   const out: string[][] = [];
   let row: string[] = [], cell = "", q = false;
   const s = text.replace(/^﻿/, "");
@@ -155,7 +155,7 @@ export function parseCsv(text: string): string[][] {
       else if (c === '"') q = false;
       else cell += c;
     } else if (c === '"') q = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === delim) { row.push(cell); cell = ""; }
     else if (c === "\n" || c === "\r") {
       if (c === "\r" && s[i + 1] === "\n") i++;
       row.push(cell); cell = "";

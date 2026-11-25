@@ -76,11 +76,11 @@ function DayView({ tz }: { tz: string }) {
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"><ChevronLeft className="size-5" /></Button>
-        <Input type="date" value={date} max={todayIn(tz)} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-auto" />
+        <Input type="date" value={date} max={todayIn(tz)} onChange={(e) => e.target.value && setDate(e.target.value)} className="min-w-0 flex-1 sm:w-auto sm:flex-none" />
         <Button variant="ghost" size="icon" onClick={() => setDate(shiftDate(date, 1))} disabled={date >= todayIn(tz)} aria-label="Next day"><ChevronRight className="size-5" /></Button>
-        <span className="text-sm text-muted">{dateLabel(date, { weekday: "long" })}</span>
+        <span className="w-full text-sm text-muted sm:w-auto">{dateLabel(date, { weekday: "long" })}</span>
       </div>
       {!rows ? <Spinner /> : rows.length === 0 ? <Empty title="No employees" /> : (
         <ul className="divide-y divide-line">

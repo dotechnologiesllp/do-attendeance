@@ -34,6 +34,29 @@ export function validateEmployee(e: EmployeeInput, { requirePassword }: { requir
   return null;
 }
 
+/** Excel often rewrites dates; accept YYYY-MM-DD, YYYY/MM/DD and DD-MM-YYYY (India). */
+function normDate(v?: string): string | null {
+  const s = (v || "").trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return s;
+}
+/** Accept 9:00, 09:00, 09:00:00 and 9:00 AM/PM. */
+function normTime(v?: string): string | null {
+  const s = (v || "").trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+  if (!m) return s;
+  let h = Number(m[1]);
+  const ap = m[3]?.toLowerCase();
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+
 /** One CSV row (already split into cells, header-mapped) → EmployeeInput. */
 export function fromCsvRow(row: Record<string, string>, officesByName: Map<string, string>, defaultOffice?: string): EmployeeInput | string {
   const gross = toPaise(row.monthly_gross || "0");
@@ -46,6 +69,7 @@ export function fromCsvRow(row: Record<string, string>, officesByName: Map<strin
     office_ids.push(id);
   }
   if (!office_ids.length && defaultOffice) office_ids.push(defaultOffice);
+  else if (!office_ids.length && officesByName.size > 1) return `office is empty. Use one of: ${[...officesByName.keys()].join(", ")}`;
   return {
     full_name: (row.name || "").trim(),
     employee_code: row.employee_id?.trim() || null,
@@ -53,9 +77,9 @@ export function fromCsvRow(row: Record<string, string>, officesByName: Map<strin
     phone: normalisePhone(row.phone),
     designation: row.designation?.trim() || null,
     department: row.department?.trim() || null,
-    joining_date: row.joining_date?.trim() || null,
-    shift_start: row.shift_start?.trim() || null,
-    shift_end: row.shift_end?.trim() || null,
+    joining_date: normDate(row.joining_date),
+    shift_start: normTime(row.shift_start),
+    shift_end: normTime(row.shift_end),
     monthly_gross_paise: gross,
     ot_eligible: /^(y|yes|true|1)$/i.test(row.ot_eligible?.trim() || ""),
     password: row.password?.trim() || undefined,

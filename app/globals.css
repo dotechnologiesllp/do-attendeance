@@ -63,3 +63,7 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 table.data tbody tr { transition: background 0.12s; }
 table.data tbody tr.clickable { cursor: pointer; }
 table.data tbody tr.clickable:hover { background: var(--soft); }
+
+/* Never let the page scroll sideways on phones; keep native date/time inputs inside their container */
+html, body { max-width: 100%; overflow-x: clip; }
+input[type="date"], input[type="time"], input[type="month"] { min-width: 0; max-width: 100%; }
