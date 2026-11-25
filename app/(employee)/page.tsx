@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { freshPosition, nearestOffice, useGeolocation, type Office } from "@/lib/geo";
 import { friendlyError } from "@/lib/errors";
@@ -9,12 +10,18 @@ import { Fingerprint, LocateFixed, LocateOff, MapPin } from "lucide-react";
 
 type Today = {
   server_now: string; today: string; timezone: string;
-  profile: { full_name: string };
+  profile: { full_name: string; staff_type?: "office" | "field" };
   sessions: { id: string; in: string; out: string | null; auto_closed: boolean }[];
   open_session: { id: string; in: string } | null;
   offices: Office[];
   day: { status: string; worked_min: number; break_min: number; late: boolean; late_min: number } | null;
 };
+
+function GoField() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/field"); }, [router]);
+  return <div className="mt-32 flex justify-center"><Spinner /></div>;
+}
 
 function greeting(tz: string) {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: tz }).format(new Date()));
@@ -124,6 +131,7 @@ export default function EmployeeHome() {
   if (!data) return <div className="mt-32 flex justify-center"><Spinner /></div>;
 
   const first = data.profile.full_name.split(" ")[0];
+  if (data.profile.staff_type === "field") return <GoField />;
   const dateText = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: tz }).format(new Date());
 
   let statusIcon = <LocateFixed className="size-4" />;

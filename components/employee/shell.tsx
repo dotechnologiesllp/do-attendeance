@@ -18,6 +18,7 @@ export function EmployeeShell({ name, children }: { name: string; children: Reac
   const path = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const isActive = (href: string) => path === href || (href === "/" && path === "/field");
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   return (
@@ -27,7 +28,7 @@ export function EmployeeShell({ name, children }: { name: string; children: Reac
         <nav className="hidden items-center gap-1 sm:flex">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href}
-              className={cn("rounded-lg px-3 py-1.5 text-sm transition", path === n.href ? "bg-soft font-medium" : "text-muted hover:text-fg")}>
+              className={cn("rounded-lg px-3 py-1.5 text-sm transition", isActive(n.href) ? "bg-soft font-medium" : "text-muted hover:text-fg")}>
               {n.label}
             </Link>
           ))}
@@ -57,7 +58,7 @@ export function EmployeeShell({ name, children }: { name: string; children: Reac
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="mx-auto grid max-w-2xl grid-cols-4">
           {NAV.map((n) => {
-            const active = path === n.href;
+            const active = isActive(n.href);
             return (
               <Link key={n.href} href={n.href} className={cn("flex h-16 flex-col items-center justify-center gap-1 text-[11px]", active ? "text-fg" : "text-muted")}>
                 <n.icon className={cn("size-5", active && "stroke-[2.25]")} />

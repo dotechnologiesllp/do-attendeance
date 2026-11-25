@@ -2,22 +2,26 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarCheck, IndianRupee, LayoutDashboard, LogOut, Menu, PanelLeft, Plane, Settings, Users } from "lucide-react";
+import { BarChart3, CalendarCheck, IndianRupee, LayoutDashboard, LogOut, Map, MapPinned, Menu, PanelLeft, Plane, Settings, Users } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const NAV = [
+// adminOnly items are hidden from managers (who see their own team only).
+const ALL_NAV = [
+  { href: "/admin/live", label: "Live Map", icon: Map },
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/employees", label: "Employees", icon: Users },
+  { href: "/admin/employees", label: "Staff", icon: Users },
+  { href: "/admin/sites", label: "Sites & Routes", icon: MapPinned },
   { href: "/admin/attendance", label: "Attendance", icon: CalendarCheck },
   { href: "/admin/leave", label: "Leave", icon: Plane },
-  { href: "/admin/payroll", label: "Payroll", icon: IndianRupee },
+  { href: "/admin/payroll", label: "Payroll", icon: IndianRupee, adminOnly: true },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true },
 ];
 
-export function AdminShell({ name, company, children }: { name: string; company: string; children: React.ReactNode }) {
+export function AdminShell({ name, role, company, children }: { name: string; role: "admin" | "manager" | "employee"; company: string; children: React.ReactNode }) {
+  const NAV = ALL_NAV.filter((n) => role === "admin" || !n.adminOnly);
   const path = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -47,7 +51,7 @@ export function AdminShell({ name, company, children }: { name: string; company:
       </nav>
       <div className="space-y-1 border-t border-line pt-3">
         <div className="flex items-center justify-between px-2.5 text-sm">
-          <span className="truncate text-muted">{name}</span>
+          <span className="truncate text-muted">{name}{role === "manager" && " · Manager"}</span>
           <ThemeToggle />
         </div>
         <button className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-sm text-muted hover:bg-soft hover:text-fg"

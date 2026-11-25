@@ -25,6 +25,7 @@ export async function createEmployee(input: EmployeeInput): Promise<{ id?: strin
     email: e.email, phone: e.phone, designation: e.designation || null, department: e.department || null,
     joining_date: e.joining_date || undefined, shift_start: e.shift_start || null, shift_end: e.shift_end || null,
     monthly_gross_paise: e.monthly_gross_paise, ot_eligible: e.ot_eligible, ot_multiplier: e.ot_multiplier ?? null,
+    staff_type: e.staff_type ?? "office", manager_id: e.manager_id || null, vehicle_type_id: e.vehicle_type_id || null,
   });
   if (pErr) {
     await admin.auth.admin.deleteUser(id);

@@ -14,6 +14,7 @@ type Profile = {
   id: string; role: "admin" | "employee"; full_name: string; employee_code: string | null; phone: string | null; email: string | null;
   designation: string | null; department: string | null; joining_date: string; exit_date: string | null; shift_start: string | null;
   shift_end: string | null; active: boolean; monthly_gross_paise: number; ot_eligible: boolean; ot_multiplier: number | null;
+  staff_type: "office" | "field"; manager_id: string | null; vehicle_type_id: string | null;
 };
 type Component = { id: string; kind: "allowance" | "deduction"; name: string; amount_paise: number };
 type Balance = { leave_type_id: string; name: string; paid: boolean; quota: number; used: number; pending: number; remaining: number };
@@ -32,6 +33,8 @@ export default function EmployeeProfile() {
   const [confirmActive, setConfirmActive] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [tz, setTz] = useState("Asia/Kolkata");
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([]);
+  const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
 
   const load = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -44,6 +47,12 @@ export default function EmployeeProfile() {
       sb.from("leave_requests").select("id, start_date, end_date, status, days, lop_days, leave_types(name)").eq("employee_id", id).order("start_date", { ascending: false }).limit(20),
       sb.from("org_settings").select("timezone").eq("id", 1).single(),
     ]);
+    const [mg, vh] = await Promise.all([
+      sb.from("profiles").select("id, full_name").eq("role", "manager").eq("active", true).order("full_name"),
+      sb.from("vehicle_types").select("id, name").eq("active", true).order("name"),
+    ]);
+    setManagers(((mg.data as { id: string; full_name: string }[]) ?? []).filter((m) => m.id !== id).map((m) => ({ id: m.id, name: m.full_name })));
+    setVehicles((vh.data as { id: string; name: string }[]) ?? []);
     setP(pr.data as Profile);
     setOffices((of.data as OfficeLite[]) ?? []);
     setAssigned(((eo.data as { office_id: string }[]) ?? []).map((x) => x.office_id));
@@ -62,6 +71,7 @@ export default function EmployeeProfile() {
     shift_start: p.shift_start?.slice(0, 5) ?? "", shift_end: p.shift_end?.slice(0, 5) ?? "",
     gross: String(p.monthly_gross_paise / 100), ot_eligible: p.ot_eligible, ot_multiplier: p.ot_multiplier != null ? String(p.ot_multiplier) : "",
     role: p.role, office_ids: assigned,
+    staff_type: p.staff_type, manager_id: p.manager_id ?? "", vehicle_type_id: p.vehicle_type_id ?? "",
   };
 
   return (
@@ -75,7 +85,8 @@ export default function EmployeeProfile() {
           </p>
           <div className="mt-2 flex gap-2">
             {!p.active && <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300">Deactivated{p.exit_date && ` · ${dateLabel(p.exit_date)}`}</Badge>}
-            {p.role === "admin" && <Badge>Admin</Badge>}
+            {p.role !== "employee" && <Badge>{p.role === "admin" ? "Admin" : "Manager"}</Badge>}
+            {p.staff_type === "field" && <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300">Field staff</Badge>}
             <Badge>{rupees(p.monthly_gross_paise)}/month</Badge>
           </div>
         </div>
@@ -114,7 +125,7 @@ export default function EmployeeProfile() {
 
         {tab === "profile" && (
           <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-            <EmployeeForm key={JSON.stringify(initial)} mode="edit" offices={offices} initial={initial} submitLabel="Save changes"
+            <EmployeeForm key={JSON.stringify(initial)} mode="edit" offices={offices} managers={managers} vehicles={vehicles} initial={initial} submitLabel="Save changes"
               onSubmit={async (input) => {
                 const sb = supabaseBrowser();
                 const { error } = await sb.from("profiles").update({
@@ -122,6 +133,7 @@ export default function EmployeeProfile() {
                   designation: input.designation, department: input.department, joining_date: input.joining_date,
                   shift_start: input.shift_start, shift_end: input.shift_end, monthly_gross_paise: input.monthly_gross_paise,
                   ot_eligible: input.ot_eligible, ot_multiplier: input.ot_multiplier,
+                  staff_type: input.staff_type, manager_id: input.manager_id, vehicle_type_id: input.vehicle_type_id,
                 }).eq("id", id);
                 if (error) return friendlyError(error);
                 await sb.from("employee_offices").delete().eq("employee_id", id);

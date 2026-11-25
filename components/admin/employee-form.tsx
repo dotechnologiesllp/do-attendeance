@@ -5,17 +5,20 @@ import { normalisePhone, validateEmployee, type EmployeeInput } from "@/lib/empl
 import { Button, Field, Input, Select, Switch } from "@/components/ui";
 
 export type OfficeLite = { id: string; name: string };
+export type Option = { id: string; name: string };
 
 export type EmployeeFormValues = {
   full_name: string; employee_code: string; email: string; phone: string; password: string; designation: string;
   department: string; joining_date: string; shift_start: string; shift_end: string; gross: string;
-  ot_eligible: boolean; ot_multiplier: string; role: "admin" | "employee"; office_ids: string[];
+  ot_eligible: boolean; ot_multiplier: string; role: "admin" | "manager" | "employee"; office_ids: string[];
+  staff_type: "office" | "field"; manager_id: string; vehicle_type_id: string;
 };
 
 export const emptyEmployee = (today: string, offices: OfficeLite[]): EmployeeFormValues => ({
   full_name: "", employee_code: "", email: "", phone: "", password: "", designation: "", department: "",
   joining_date: today, shift_start: "09:00", shift_end: "18:00", gross: "", ot_eligible: false, ot_multiplier: "",
   role: "employee", office_ids: offices.length === 1 ? [offices[0].id] : [],
+  staff_type: "office", manager_id: "", vehicle_type_id: "",
 });
 
 export function toInput(v: EmployeeFormValues): EmployeeInput {
@@ -25,11 +28,12 @@ export function toInput(v: EmployeeFormValues): EmployeeInput {
     department: v.department.trim() || null, joining_date: v.joining_date || null, shift_start: v.shift_start || null,
     shift_end: v.shift_end || null, monthly_gross_paise: toPaise(v.gross || "0"), ot_eligible: v.ot_eligible,
     ot_multiplier: v.ot_multiplier ? Number(v.ot_multiplier) : null, role: v.role, office_ids: v.office_ids,
+    staff_type: v.staff_type, manager_id: v.manager_id || null, vehicle_type_id: v.vehicle_type_id || null,
   };
 }
 
-export function EmployeeForm({ initial, offices, mode, onSubmit, submitLabel }: {
-  initial: EmployeeFormValues; offices: OfficeLite[]; mode: "create" | "edit";
+export function EmployeeForm({ initial, offices, managers = [], vehicles = [], mode, onSubmit, submitLabel }: {
+  initial: EmployeeFormValues; offices: OfficeLite[]; managers?: Option[]; vehicles?: Option[]; mode: "create" | "edit";
   onSubmit: (input: EmployeeInput) => Promise<string | null>; submitLabel: string;
 }) {
   const [v, setV] = useState(initial);
@@ -55,9 +59,31 @@ export function EmployeeForm({ initial, offices, mode, onSubmit, submitLabel }: 
         <Field label="Employee ID"><Input value={v.employee_code} onChange={(e) => set("employee_code", e.target.value)} placeholder="EMP006" /></Field>
         <Field label="Role">
           <Select value={v.role} onChange={(e) => set("role", e.target.value as "admin" | "employee")}>
-            <option value="employee">Employee</option><option value="admin">Admin</option>
+            <option value="employee">Staff</option><option value="manager">Manager (sees own team)</option><option value="admin">Admin</option>
           </Select>
         </Field>
+        <Field label="Staff type" hint="Field staff use the mobile app with tracking">
+          <Select value={v.staff_type} onChange={(e) => {
+            const t = e.target.value as "office" | "field";
+            setV((x) => ({ ...x, staff_type: t, shift_start: t === "field" && x.shift_start === "09:00" ? "09:30" : x.shift_start, shift_end: t === "field" && x.shift_end === "18:00" ? "18:30" : x.shift_end }));
+          }}>
+            <option value="office">Office (punch inside the office)</option><option value="field">Field (Start / End day, visits, tracking)</option>
+          </Select>
+        </Field>
+        <Field label="Manager" hint="Their manager sees their attendance and approves leave">
+          <Select value={v.manager_id} onChange={(e) => set("manager_id", e.target.value)}>
+            <option value="">No manager (admins only)</option>
+            {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </Select>
+        </Field>
+        {v.staff_type === "field" && (
+          <Field label="Vehicle" hint="Sets the travel allowance rate per km">
+            <Select value={v.vehicle_type_id} onChange={(e) => set("vehicle_type_id", e.target.value)}>
+              <option value="">No travel allowance</option>
+              {vehicles.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label="Email" hint="Used to sign in"><Input type="email" value={v.email} onChange={(e) => set("email", e.target.value)} /></Field>
         <Field label="Phone" hint="10-digit mobile; can also sign in"><Input type="tel" value={v.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
         {mode === "create" && (
@@ -74,7 +100,7 @@ export function EmployeeForm({ initial, offices, mode, onSubmit, submitLabel }: 
         </div>
       </div>
 
-      <fieldset className="space-y-2">
+      {v.staff_type === "office" && <fieldset className="space-y-2">
         <legend className="mb-1 text-sm font-medium">Offices</legend>
         {offices.length === 0 && <p className="text-sm text-muted">Add an office in Settings first.</p>}
         <div className="flex flex-wrap gap-2">
@@ -88,7 +114,7 @@ export function EmployeeForm({ initial, offices, mode, onSubmit, submitLabel }: 
             );
           })}
         </div>
-      </fieldset>
+      </fieldset>}
 
       <div className="grid gap-4 rounded-2xl bg-soft p-4 sm:grid-cols-2">
         <Field label="Monthly gross salary (₹)"><Input inputMode="decimal" value={v.gross} onChange={(e) => set("gross", e.target.value)} placeholder="30000" /></Field>

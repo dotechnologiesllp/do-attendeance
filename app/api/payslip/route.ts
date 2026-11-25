@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildPayslipPdf } from "@/lib/payslip-pdf";
 import type { PayrollRow } from "@/lib/payroll";
@@ -15,8 +16,13 @@ export async function GET(req: Request) {
   const employee = url.searchParams.get("employee") ?? "";
   if (!/^\d{4}-\d{2}-01$/.test(month) || !/^[0-9a-f-]{36}$/i.test(employee)) return new Response("Bad request", { status: 400 });
 
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
+  // Web: the cookie session. Mobile app: "Authorization: Bearer <access token>". Either way RLS applies.
+  const bearer = req.headers.get("authorization");
+  const sb = bearer?.startsWith("Bearer ")
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+        global: { headers: { Authorization: bearer } }, auth: { persistSession: false } })
+    : await supabaseServer();
+  const { data: { user } } = bearer?.startsWith("Bearer ") ? await sb.auth.getUser(bearer.slice(7)) : await sb.auth.getUser();
   if (!user) return new Response("Sign in first", { status: 401 });
 
   const [{ data: slip }, { data: company }] = await Promise.all([

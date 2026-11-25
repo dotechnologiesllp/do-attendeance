@@ -6,7 +6,9 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
 import { dateLabel, hm, isoToHHMM, STATUS_LABEL, STATUS_TONE, timeOf, todayIn, zonedToIso } from "@/lib/format";
-import { Badge, Button, ConfirmDialog, Empty, Field, Input, Modal, PageHeader, Spinner, Tabs, Textarea, useToast } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Empty, Field, Input, Modal, PageHeader, Sheet, Spinner, Tabs, Textarea, useToast } from "@/components/ui";
+import { FieldDay } from "@/components/admin/field-day";
+import { km } from "@/lib/field";
 
 type Session = {
   id: string; employee_id: string; work_date: string; check_in_at: string; check_out_at: string | null;
@@ -25,7 +27,7 @@ export default function AttendancePage() {
 
 function Attendance() {
   const params = useSearchParams();
-  const [tab, setTab] = useState<"day" | "review" | "audit">((params.get("tab") as "review") || "day");
+  const [tab, setTab] = useState<"field" | "day" | "review" | "audit">((params.get("tab") as "review") || "field");
   const [tz, setTz] = useState("Asia/Kolkata");
   useEffect(() => {
     supabaseBrowser().from("org_settings").select("timezone").eq("id", 1).single().then(({ data }) => data?.timezone && setTz(data.timezone));
@@ -33,8 +35,9 @@ function Attendance() {
   return (
     <>
       <PageHeader title="Attendance" sub="Every edit needs a reason and is kept in the audit log." />
-      <Tabs value={tab} onChange={setTab} items={[{ value: "day", label: "By day" }, { value: "review", label: "Needs review" }, { value: "audit", label: "Audit log" }]} />
+      <Tabs value={tab} onChange={setTab} items={[{ value: "field", label: "Field days" }, { value: "day", label: "Punches by day" }, { value: "review", label: "Needs review" }, { value: "audit", label: "Audit log" }]} />
       <div className="mt-6">
+        {tab === "field" && <FieldDays tz={tz} />}
         {tab === "day" && <DayView tz={tz} />}
         {tab === "review" && <ReviewView tz={tz} />}
         {tab === "audit" && <AuditView tz={tz} />}
@@ -267,6 +270,60 @@ function AuditView({ tz }: { tz: string }) {
           </table>
         </div>
       )}
+    </>
+  );
+}
+
+type FieldRow = { employee_id: string; full_name: string; work_date: string; start_at: string; end_at: string | null; onsite: boolean;
+  offsite_status: string; late: boolean; late_min: number; worked_min: number; break_min: number; km: number; km_adjusted: boolean;
+  visits_planned: number; visits_done: number; planned_done: number; unplanned: number; missed: number; auto_closed: boolean; flags: string[] };
+
+/** Field staff: one row per duty day, opening the full day (selfies, map, visits, hours and km). */
+function FieldDays({ tz }: { tz: string }) {
+  const [date, setDate] = useState(() => todayIn(tz));
+  const [rows, setRows] = useState<FieldRow[] | null>(null);
+  const [open, setOpen] = useState<FieldRow | null>(null);
+  const load = useCallback(async () => {
+    setRows(null);
+    const { data } = await supabaseBrowser().rpc("report_field_days", { p_from: date, p_to: date });
+    setRows((data as FieldRow[]) ?? []);
+  }, [date]);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"><ChevronLeft className="size-5" /></Button>
+        <Input type="date" value={date} max={todayIn(tz)} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-auto" />
+        <Button variant="ghost" size="icon" onClick={() => setDate(shiftDate(date, 1))} disabled={date >= todayIn(tz)} aria-label="Next day"><ChevronRight className="size-5" /></Button>
+      </div>
+      {!rows ? <Spinner /> : rows.length === 0 ? <Empty title="No field duty on this day" /> : (
+        <div className="scroll-x">
+          <table className="data">
+            <thead><tr><th>Staff</th><th>Start</th><th>End</th><th className="num">Worked</th><th className="num">Visits</th><th className="num">Km</th><th>Flags</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.employee_id} className="clickable" onClick={() => setOpen(r)}>
+                  <td className="font-medium whitespace-nowrap">{r.full_name}</td>
+                  <td className="whitespace-nowrap tabular">{timeOf(r.start_at, tz)}{" "}
+                    {r.onsite ? <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">On-site</Badge>
+                      : <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300">Off-site · {r.offsite_status}</Badge>}
+                    {r.late && <Badge className="ml-1 bg-amber-500/15 text-amber-700 dark:text-amber-300">Late {r.late_min}m</Badge>}
+                  </td>
+                  <td className="whitespace-nowrap tabular">{r.end_at ? timeOf(r.end_at, tz) : <span className="text-muted">on duty</span>}{r.auto_closed && <Badge className="ml-1 bg-rose-500/15 text-rose-700 dark:text-rose-300">auto</Badge>}</td>
+                  <td className="num">{hm(r.worked_min)}</td>
+                  <td className="num">{r.planned_done}/{r.visits_planned}{r.unplanned ? ` +${r.unplanned}` : ""}</td>
+                  <td className="num">{km(r.km)}{r.km_adjusted && "*"}</td>
+                  <td className="text-xs text-muted">{r.flags.filter((f) => !/^Off-site start/.test(f)).join(" · ") || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-muted">* km adjusted by an admin.</p>
+        </div>
+      )}
+      <Sheet open={!!open} onClose={() => setOpen(null)} title={open?.full_name ?? ""} sub={dateLabel(date, { weekday: "long", day: "numeric", month: "long" })}>
+        {open && <FieldDay employeeId={open.employee_id} date={date} onChanged={load} />}
+      </Sheet>
     </>
   );
 }

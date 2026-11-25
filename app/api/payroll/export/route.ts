@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   for (const r of payroll.rows) {
     const vals = PAYROLL_COLUMNS.map((c) => {
       const v = c.key === "adjustments_net" ? adjustmentsNet(r) : r[c.key as keyof PayrollRow];
-      return c.money ? Number(v) / 100 : typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
+      return c.money ? Number(v ?? 0) / 100 : typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
     });
     ws.addRow([...vals, Number(r.per_day_paise) / 100, Number(r.hourly_paise) / 100, r.late_marks]);
   }

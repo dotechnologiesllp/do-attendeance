@@ -25,6 +25,11 @@ export function friendlyError(err: unknown): string {
     case "OPEN_SESSIONS":
     case "RANGE_TOO_LARGE":
       return msg.slice(code.length + 1).trim() || msg;
+    case "NOT_STARTED": case "ALREADY_STARTED": case "ALREADY_ENDED": case "VISIT_OPEN": case "DAY_ENDED":
+    case "MOCK_LOCATION": case "ALREADY_PAUSED": case "NOT_PAUSED": case "NOT_FOUND":
+      return msg.slice(code.length + 1).trim() || code.replace(/_/g, " ").toLowerCase();
+    case "SELFIE_REQUIRED":
+      return "Take a selfie to continue.";
     case "ALREADY_DECIDED":
       return "This request has already been decided.";
     case "ALREADY_FINALIZED":

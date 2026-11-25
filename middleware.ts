@@ -4,6 +4,10 @@ import { createServerClient } from "@supabase/ssr";
 type CookieToSet = { name: string; value: string; options?: Record<string, unknown> };
 
 export async function middleware(request: NextRequest) {
+  // The staff app calls a few API routes with a Bearer token instead of cookies; those routes check it themselves.
+  if (request.nextUrl.pathname.startsWith("/api/") && request.headers.get("authorization")?.startsWith("Bearer ")) {
+    return NextResponse.next();
+  }
   let response = NextResponse.next({ request });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {

@@ -9,6 +9,7 @@ export type PayrollRow = {
   absent: number; not_employed_days: number; late_marks: number; late_deduction_days: number; lop_days: number;
   worked_min: number; ot_min: number; ot_hours: number; ot_eligible: boolean; ot_multiplier: number; review_days: number;
   gross_paise: number; per_day_paise: number; hourly_paise: number; lop_paise: number; ot_paise: number;
+  ta_paise?: number; ta?: { paise: number; km: number; items: { vehicle: string; km: number; rate_paise_per_km: number; paise: number }[] };
   allowances_paise: number; allowances: { name: string; paise: number }[];
   deductions_paise: number; deductions: { name: string; paise: number }[];
   bonus_paise: number; onetime_deductions_paise: number;
@@ -54,6 +55,9 @@ export function breakdown(r: PayrollRow, symbol = "₹"): Line[] {
       : "not eligible",
     amount: m(r.ot_paise), sign: "+",
   });
+  for (const t of r.ta?.items ?? []) {
+    L.push({ label: `Travel allowance (${t.vehicle})`, formula: `${num(t.km)} km × ${m(t.rate_paise_per_km)}/km`, amount: m(t.paise), sign: "+" });
+  }
   for (const a of r.allowances ?? []) L.push({ label: a.name, formula: "fixed allowance", amount: m(a.paise), sign: "+" });
   for (const a of r.adjustments ?? []) {
     const plus = a.kind === "bonus" || a.kind === "incentive";
@@ -63,6 +67,7 @@ export function breakdown(r: PayrollRow, symbol = "₹"): Line[] {
 
   const terms = [
     m(r.gross_paise), `− ${m(r.lop_paise)}`, `+ ${m(r.ot_paise)}`,
+    Number(r.ta_paise ?? 0) ? `+ ${m(r.ta_paise ?? 0)}` : "",
     Number(r.allowances_paise) ? `+ ${m(r.allowances_paise)}` : "",
     Number(r.bonus_paise) ? `+ ${m(r.bonus_paise)}` : "",
     Number(r.deductions_paise) ? `− ${m(r.deductions_paise)}` : "",
@@ -91,6 +96,7 @@ export const PAYROLL_COLUMNS: { key: keyof PayrollRow | "adjustments_net"; label
   { key: "gross_paise", label: "Gross", money: true },
   { key: "lop_paise", label: "LOP deduction", money: true },
   { key: "ot_paise", label: "OT pay", money: true },
+  { key: "ta_paise", label: "Travel allow.", money: true },
   { key: "adjustments_net", label: "Adjustments", money: true },
   { key: "net_paise", label: "Net pay", money: true },
 ];

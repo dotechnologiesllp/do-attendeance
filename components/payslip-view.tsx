@@ -10,6 +10,7 @@ export function PayslipView({ row }: { row: PayrollRow }) {
     ["Working days", row.working_days], ["Present", row.present], ["Half days", row.half_days],
     ["Paid leave", num(row.paid_leave)], ["Unpaid leave", num(row.unpaid_leave)], ["Absent", num(row.absent)],
     ["Late marks", row.late_marks], ["Worked", hm(row.worked_min)], ["Overtime", hm(row.ot_min)],
+    ...(row.ta?.km ? [["Km (travel)", num(row.ta.km)] as [string, string]] : []),
   ];
   return (
     <div>

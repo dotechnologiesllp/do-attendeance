@@ -5,12 +5,13 @@ export type EmployeeInput = {
   full_name: string; employee_code?: string | null; email?: string | null; phone?: string | null; password?: string;
   designation?: string | null; department?: string | null; joining_date?: string | null;
   shift_start?: string | null; shift_end?: string | null; monthly_gross_paise: number;
-  ot_eligible: boolean; ot_multiplier?: number | null; role?: "admin" | "employee"; office_ids: string[];
+  ot_eligible: boolean; ot_multiplier?: number | null; role?: "admin" | "manager" | "employee"; office_ids: string[];
+  staff_type?: "office" | "field"; manager_id?: string | null; vehicle_type_id?: string | null;
 };
 
 export const CSV_HEADERS = [
   "name", "employee_id", "email", "phone", "designation", "department", "joining_date",
-  "shift_start", "shift_end", "monthly_gross", "ot_eligible", "office", "password",
+  "shift_start", "shift_end", "monthly_gross", "ot_eligible", "office", "password", "staff_type",
 ] as const;
 
 export function normalisePhone(v: string | null | undefined) {
@@ -85,5 +86,6 @@ export function fromCsvRow(row: Record<string, string>, officesByName: Map<strin
     password: row.password?.trim() || undefined,
     office_ids,
     role: "employee",
+    staff_type: /^field$/i.test(row.staff_type?.trim() || "") ? "field" : "office",
   };
 }

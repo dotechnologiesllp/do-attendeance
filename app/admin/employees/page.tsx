@@ -9,12 +9,14 @@ import { Badge, Button, Empty, Input, Modal, PageHeader, Sheet, Spinner, Tabs, u
 import { EmployeeForm, emptyEmployee, type OfficeLite } from "@/components/admin/employee-form";
 
 type Emp = { id: string; full_name: string; employee_code: string | null; designation: string | null; department: string | null;
-  email: string | null; phone: string | null; active: boolean; role: string; monthly_gross_paise: number };
+  email: string | null; phone: string | null; active: boolean; role: string; monthly_gross_paise: number; staff_type: string };
 
 export default function EmployeesPage() {
   const toast = useToast();
   const [emps, setEmps] = useState<Emp[] | null>(null);
   const [offices, setOffices] = useState<OfficeLite[]>([]);
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([]);
+  const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"active" | "inactive">("active");
   const [adding, setAdding] = useState(false);
@@ -22,10 +24,13 @@ export default function EmployeesPage() {
 
   const load = useCallback(async () => {
     const sb = supabaseBrowser();
-    const [e, o] = await Promise.all([
-      sb.from("profiles").select("id, full_name, employee_code, designation, department, email, phone, active, role, monthly_gross_paise").order("full_name"),
+    const [e, o, v] = await Promise.all([
+      sb.from("profiles").select("id, full_name, employee_code, designation, department, email, phone, active, role, monthly_gross_paise, staff_type").order("full_name"),
       sb.from("offices").select("id, name").eq("active", true).order("name"),
+      sb.from("vehicle_types").select("id, name, rate_paise_per_km").eq("active", true).order("name"),
     ]);
+    setManagers(((e.data as Emp[]) ?? []).filter((x) => x.role === "manager" && x.active).map((x) => ({ id: x.id, name: x.full_name })));
+    setVehicles(((v.data as { id: string; name: string; rate_paise_per_km: number }[]) ?? []).map((x) => ({ id: x.id, name: `${x.name} · ₹${(x.rate_paise_per_km / 100).toFixed(2)}/km` })));
     setEmps((e.data as Emp[]) ?? []);
     setOffices((o.data as OfficeLite[]) ?? []);
   }, []);
@@ -60,7 +65,7 @@ export default function EmployeesPage() {
             <tbody>
               {list.map((e) => (
                 <tr key={e.id} className="clickable">
-                  <td><Link href={`/admin/employees/${e.id}`} className="font-medium hover:underline">{e.full_name}</Link>{e.role === "admin" && <Badge className="ml-2">Admin</Badge>}</td>
+                  <td><Link href={`/admin/employees/${e.id}`} className="font-medium hover:underline">{e.full_name}</Link>{e.role !== "employee" && <Badge className="ml-2">{e.role === "admin" ? "Admin" : "Manager"}</Badge>}{e.staff_type === "field" && <Badge className="ml-2 bg-blue-500/15 text-blue-700 dark:text-blue-300">Field</Badge>}</td>
                   <td className="text-muted">{e.employee_code ?? "—"}</td>
                   <td className="hidden text-muted sm:table-cell">{[e.designation, e.department].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="hidden text-muted md:table-cell">{e.email ?? e.phone ?? "—"}</td>
@@ -73,7 +78,7 @@ export default function EmployeesPage() {
       )}
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add employee" sub="Creates their login. There is no public sign-up.">
-        <EmployeeForm mode="create" offices={offices} initial={emptyEmployee(todayIn(), offices)} submitLabel="Create employee"
+        <EmployeeForm mode="create" offices={offices} managers={managers} vehicles={vehicles} initial={emptyEmployee(todayIn(), offices)} submitLabel="Create employee"
           onSubmit={async (input) => {
             const res = await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
             const j = await res.json();

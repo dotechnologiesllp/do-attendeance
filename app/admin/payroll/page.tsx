@@ -33,8 +33,8 @@ export default function PayrollPage() {
   }, [data]);
 
   const totals = useMemo(() => {
-    const t = { gross: 0, lop: 0, ot: 0, adj: 0, net: 0 };
-    for (const r of data?.rows ?? []) { t.gross += Number(r.gross_paise); t.lop += Number(r.lop_paise); t.ot += Number(r.ot_paise); t.adj += adjustmentsNet(r); t.net += Number(r.net_paise); }
+    const t = { gross: 0, lop: 0, ot: 0, ta: 0, adj: 0, net: 0 };
+    for (const r of data?.rows ?? []) { t.gross += Number(r.gross_paise); t.lop += Number(r.lop_paise); t.ot += Number(r.ot_paise); t.ta += Number(r.ta_paise ?? 0); t.adj += adjustmentsNet(r); t.net += Number(r.net_paise); }
     return t;
   }, [data]);
 
@@ -47,7 +47,7 @@ export default function PayrollPage() {
     const headers = PAYROLL_COLUMNS.map((c) => c.label);
     const rows = data.rows.map((r) => PAYROLL_COLUMNS.map((c) => {
       const v = c.key === "adjustments_net" ? adjustmentsNet(r) : r[c.key as keyof PayrollRow];
-      return c.money ? (Number(v) / 100).toFixed(2) : (v as string | number);
+      return c.money ? (Number(v ?? 0) / 100).toFixed(2) : (v as string | number);
     }));
     downloadText(`payroll-${month.slice(0, 7)}.csv`, toCsv(headers, rows));
   }
@@ -96,6 +96,7 @@ export default function PayrollPage() {
                   <td className="num">{rupees(r.gross_paise)}</td>
                   <td className="num">{Number(r.lop_paise) ? `−${rupees(r.lop_paise)}` : "—"}</td>
                   <td className="num">{Number(r.ot_paise) ? `+${rupees(r.ot_paise)}` : "—"}</td>
+                  <td className="num">{Number(r.ta_paise ?? 0) ? `+${rupees(r.ta_paise ?? 0)}` : "—"}</td>
                   <td className="num">{adjustmentsNet(r) ? (adjustmentsNet(r) > 0 ? "+" : "") + rupees(adjustmentsNet(r)) : "—"}</td>
                   <td className="num font-semibold">{rupees(r.net_paise)}</td>
                 </tr>
@@ -107,6 +108,7 @@ export default function PayrollPage() {
                 <td className="num">{rupees(totals.gross)}</td>
                 <td className="num">−{rupees(totals.lop)}</td>
                 <td className="num">+{rupees(totals.ot)}</td>
+                <td className="num">+{rupees(totals.ta)}</td>
                 <td className="num">{rupees(totals.adj)}</td>
                 <td className="num">{rupees(totals.net)}</td>
               </tr>

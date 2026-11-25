@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
 import { dateLabel, hm, timeOf } from "@/lib/format";
 import { Badge, cn, Empty, PageHeader, Spinner } from "@/components/ui";
+import { FieldToday } from "@/components/admin/field-today";
 
 type Dash = {
   today: string; day_kind: string; total: number; inside: number; on_break: number; absent: number; on_leave: number; late: number;
@@ -47,6 +48,8 @@ export default function Dashboard() {
     <>
       <PageHeader title="Today" sub={`${dateLabel(d.today, { weekday: "long", day: "numeric", month: "long" })}${d.day_kind !== "working" ? ` · ${d.day_kind === "holiday" ? "Holiday" : "Weekly off"}` : ""}`} />
 
+      <FieldToday />
+      <h2 className="mb-1 font-semibold">Office staff</h2>
       <div className="grid grid-cols-3 gap-y-6 border-y border-line py-6 md:grid-cols-6">
         {stats.map(([l, v, tone]) => (
           <div key={l} className="px-2">

@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { LocateFixed, Pencil, Plus } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { toPaise } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
 import { Badge, Button, Field, Input, Modal, PageHeader, Section, Select, Spinner, Switch, Textarea, useToast } from "@/components/ui";
 
@@ -16,7 +17,10 @@ type Settings = {
   late_marks_per_deduction: number; late_deduction_days: number; auto_close_cutoff: string; default_shift_start: string;
   default_shift_end: string; pay_basis: "calendar" | "working" | "fixed"; fixed_basis_days: number; standard_daily_hours: number;
   ot_multiplier: number; ot_off_day_full: boolean; ot_block_minutes: number; round_to_rupee: boolean;
+  track_interval_min: number; track_distance_m: number; default_site_radius_m: number; poor_accuracy_m: number; block_mock: boolean;
+  idle_minutes: number; offline_alert_min: number; clock_skew_flag_s: number; retention_months: number; field_shift_start: string;
 };
+type Vehicle = { id: string; name: string; rate_paise_per_km: number; active: boolean };
 type Office = { id: string; name: string; address: string | null; lat: number; lng: number; radius_m: number; active: boolean };
 
 export default function SettingsPage() {
@@ -115,6 +119,31 @@ export default function SettingsPage() {
           </div>
         </Section>
 
+        <Section title="Field tracking" sub="Applies to field staff. Tracking runs only between Start day and End day.">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Location every (minutes)" hint="Plus a point on significant movement">{numIn("track_interval_min")}</Field>
+            <Field label="Significant movement (m)">{numIn("track_distance_m")}</Field>
+            <Field label="Default site radius (m)" hint="For new sites">{numIn("default_site_radius_m")}</Field>
+            <Field label="Field shift start" hint="Default for new field staff"><Input type="time" value={s.field_shift_start.slice(0, 5)} onChange={(e) => set("field_shift_start", e.target.value)} /></Field>
+            <Field label="Flag GPS accuracy worse than (m)">{numIn("poor_accuracy_m")}</Field>
+            <Field label="Idle after (minutes)" hint="No movement beyond 75 m">{numIn("idle_minutes")}</Field>
+            <Field label="Alert: no location for (minutes)" hint="GPS/internet off, phone off">{numIn("offline_alert_min")}</Field>
+            <Field label="Flag phone clock off by (seconds)">{numIn("clock_skew_flag_s")}</Field>
+            <Field label="Keep raw location points (months)" hint="Then deleted; daily summaries stay">{numIn("retention_months")}</Field>
+          </div>
+          <div className="mt-5 space-y-3 border-t border-line pt-4">
+            <Switch checked={s.block_mock} onChange={(v) => set("block_mock", v)} label="Block punches from a mock-location app"
+              hint="Off: the punch is accepted but flagged for the admin. On: the punch is refused." />
+            <Button variant="outline" size="sm" onClick={async () => {
+              const { data, error } = await supabaseBrowser().rpc("purge_location_history");
+              if (error) toast(friendlyError(error), "error"); else toast(`Deleted ${(data as { points_deleted: number }).points_deleted} old location points`);
+            }}>Delete location history older than {s.retention_months} months now</Button>
+            <p className="text-xs text-muted">This also runs every night when pg_cron is enabled in Supabase.</p>
+          </div>
+        </Section>
+
+        <Vehicles />
+
         <Section title="Payroll rules">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Per-day rate basis">
@@ -204,5 +233,41 @@ function OfficeEditor({ office, onClose, onSaved }: { office: Partial<Office> | 
         <Switch checked={o.active ?? true} onChange={(v) => setO({ ...o, active: v })} label="Active" />
       </div>
     </Modal>
+  );
+}
+
+function Vehicles() {
+  const toast = useToast();
+  const [items, setItems] = useState<Vehicle[] | null>(null);
+  const load = useCallback(async () => {
+    const { data } = await supabaseBrowser().from("vehicle_types").select("*").order("name");
+    setItems((data as Vehicle[]) ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  async function save(v: Partial<Vehicle>) {
+    const sb = supabaseBrowser();
+    const { error } = v.id ? await sb.from("vehicle_types").update(v).eq("id", v.id) : await sb.from("vehicle_types").insert(v);
+    if (error) toast(friendlyError(error), "error"); else load();
+  }
+  return (
+    <Section title="Travel allowance" sub="Rate per km for each vehicle type. Monthly TA = km travelled (GPS, or the admin's adjusted value) × rate, added to payroll.">
+      {!items ? <Spinner /> : (
+        <ul className="divide-y divide-line">
+          {items.map((v) => (
+            <li key={v.id} className="grid grid-cols-[1fr_120px_auto] items-center gap-3 py-2.5">
+              <Input defaultValue={v.name} aria-label="Vehicle" onBlur={(e) => e.target.value !== v.name && save({ id: v.id, name: e.target.value })} />
+              <div className="relative">
+                <Input inputMode="decimal" defaultValue={(v.rate_paise_per_km / 100).toFixed(2)} aria-label="Rupees per km" className="pr-12"
+                  onBlur={(e) => { const p = toPaise(e.target.value); if (Number.isFinite(p) && p !== v.rate_paise_per_km) save({ id: v.id, rate_paise_per_km: p }); }} />
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted">₹/km</span>
+              </div>
+              <Switch checked={v.active} onChange={(a) => save({ id: v.id, active: a })} label="On" />
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button variant="secondary" size="sm" className="mt-3" onClick={() => save({ name: `Vehicle ${(items?.length ?? 0) + 1}`, rate_paise_per_km: 300, active: true })}><Plus className="size-4" />Add vehicle type</Button>
+      <p className="mt-2 text-xs text-muted">Rate changes apply to days ended after the change; past days keep the rate they were ended with.</p>
+    </Section>
   );
 }

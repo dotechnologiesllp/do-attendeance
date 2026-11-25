@@ -31,7 +31,7 @@ export function supabaseAdmin() {
   });
 }
 
-export type Me = { id: string; role: "admin" | "employee"; full_name: string; active: boolean };
+export type Me = { id: string; role: "admin" | "manager" | "employee"; full_name: string; active: boolean };
 
 export async function getMe(): Promise<Me | null> {
   const sb = await supabaseServer();
@@ -39,6 +39,13 @@ export async function getMe(): Promise<Me | null> {
   if (!user) return null;
   const { data } = await sb.from("profiles").select("id, role, full_name, active").eq("id", user.id).maybeSingle();
   return (data as Me) ?? null;
+}
+
+/** For API routes: an active admin or manager (managers are limited to their team by the database). */
+export async function requireStaffViewer(): Promise<Me> {
+  const me = await getMe();
+  if (!me || !me.active || (me.role !== "admin" && me.role !== "manager")) throw new Response("Forbidden", { status: 403 });
+  return me;
 }
 
 /** For API routes: the caller must be an active admin. */

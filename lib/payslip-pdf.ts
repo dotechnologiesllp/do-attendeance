@@ -80,6 +80,7 @@ export async function buildPayslipPdf(row: PayrollRow, company: Company, opts: {
 
   // Earnings and deductions
   const earn: [string, number][] = [["Gross salary", Number(row.gross_paise)], ["Overtime pay", Number(row.ot_paise)],
+    ...(Number(row.ta_paise ?? 0) ? [[`Travel allowance (${row.ta?.km ?? 0} km)`, Number(row.ta_paise)] as [string, number]] : []),
     ...row.allowances.map((a) => [a.name, Number(a.paise)] as [string, number]),
     ...row.adjustments.filter((a) => a.kind === "bonus" || a.kind === "incentive").map((a) => [`${a.kind === "bonus" ? "Bonus" : "Incentive"}: ${a.note}`, Number(a.paise)] as [string, number])];
   const ded: [string, number][] = [["Loss of pay", Number(row.lop_paise)],
