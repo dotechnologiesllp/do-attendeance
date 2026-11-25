@@ -196,8 +196,8 @@ function OfficeEditor({ office, onClose, onSaved }: { office: Partial<Office> | 
           <Field label="Latitude"><Input inputMode="decimal" value={o.lat ?? ""} onChange={(e) => setO({ ...o, lat: Number(e.target.value) })} /></Field>
           <Field label="Longitude"><Input inputMode="decimal" value={o.lng ?? ""} onChange={(e) => setO({ ...o, lng: Number(e.target.value) })} /></Field>
         </div>
-        <Field label={`Radius: ${o.radius_m ?? 100} m`} hint="Bigger radius = easier punching but less strict. 100 m suits most offices.">
-          <input type="range" min={25} max={1000} step={5} value={o.radius_m ?? 100} onChange={(e) => setO({ ...o, radius_m: Number(e.target.value) })}
+        <Field label={`Radius: ${o.radius_m ?? 100} m`} hint="Bigger radius = easier punching but less strict. 100 m suits most offices. Below about 20 m, GPS error makes punching unreliable.">
+          <input type="range" min={5} max={1000} step={5} value={o.radius_m ?? 100} onChange={(e) => setO({ ...o, radius_m: Number(e.target.value) })}
             className="w-full accent-[var(--accent)]" />
         </Field>
         <Field label="Address"><Input value={o.address ?? ""} onChange={(e) => setO({ ...o, address: e.target.value })} /></Field>
