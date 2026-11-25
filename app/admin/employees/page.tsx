@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Upload } from "lucide-react";
+import { Plus, Search, Trash2, Upload } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { downloadText, parseCsv, rupees, todayIn, toCsv } from "@/lib/format";
 import { CSV_HEADERS, fromCsvRow, type EmployeeInput } from "@/lib/employee";
-import { Badge, Button, Empty, Input, Modal, PageHeader, Sheet, Spinner, Tabs, useToast } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Empty, Input, Modal, PageHeader, Sheet, Spinner, Tabs, useToast } from "@/components/ui";
 import { EmployeeForm, emptyEmployee, type OfficeLite } from "@/components/admin/employee-form";
 
 type Emp = { id: string; full_name: string; employee_code: string | null; designation: string | null; department: string | null;
@@ -21,6 +21,9 @@ export default function EmployeesPage() {
   const [tab, setTab] = useState<"active" | "inactive">("active");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [confirmDel, setConfirmDel] = useState(false);
+  useEffect(() => { setSel(new Set()); }, [tab, q]);
 
   const load = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -41,6 +44,9 @@ export default function EmployeesPage() {
     [e.full_name, e.employee_code, e.designation, e.department, e.email, e.phone].join(" ").toLowerCase().includes(q.toLowerCase()),
   ), [emps, q, tab]);
 
+  const allSelected = list.length > 0 && list.every((e) => sel.has(e.id));
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   return (
     <>
       <PageHeader title="Employees" sub={emps ? `${emps.filter((e) => e.active).length} active` : undefined} actions={
@@ -56,15 +62,19 @@ export default function EmployeesPage() {
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, ID, department" className="pl-9" />
         </div>
         <Tabs value={tab} onChange={setTab} items={[{ value: "active", label: "Active" }, { value: "inactive", label: "Deactivated" }]} />
+        {sel.size > 0 && (
+          <Button variant="danger" size="sm" onClick={() => setConfirmDel(true)}><Trash2 className="size-4" />Delete {sel.size} selected</Button>
+        )}
       </div>
 
       {!emps ? <Spinner /> : list.length === 0 ? <Empty title="No employees found" /> : (
         <div className="scroll-x">
           <table className="data">
-            <thead><tr><th>Name</th><th>ID</th><th className="hidden sm:table-cell">Designation</th><th className="hidden md:table-cell">Contact</th><th className="num">Gross / month</th></tr></thead>
+            <thead><tr><th className="w-10"><input type="checkbox" aria-label="Select all" checked={allSelected} onChange={() => setSel(allSelected ? new Set() : new Set(list.map((e) => e.id)))} /></th><th>Name</th><th>ID</th><th className="hidden sm:table-cell">Designation</th><th className="hidden md:table-cell">Contact</th><th className="num">Gross / month</th></tr></thead>
             <tbody>
               {list.map((e) => (
                 <tr key={e.id} className="clickable">
+                  <td><input type="checkbox" aria-label={`Select ${e.full_name}`} checked={sel.has(e.id)} onChange={() => toggle(e.id)} /></td>
                   <td><Link href={`/admin/employees/${e.id}`} className="font-medium hover:underline">{e.full_name}</Link>{e.role !== "employee" && <Badge className="ml-2">{e.role === "admin" ? "Admin" : "Manager"}</Badge>}{e.staff_type === "field" && <Badge className="ml-2 bg-blue-500/15 text-blue-700 dark:text-blue-300">Field</Badge>}</td>
                   <td className="text-muted">{e.employee_code ?? "—"}</td>
                   <td className="hidden text-muted sm:table-cell">{[e.designation, e.department].filter(Boolean).join(" · ") || "—"}</td>
@@ -87,6 +97,19 @@ export default function EmployeesPage() {
             return null;
           }} />
       </Sheet>
+
+      <ConfirmDialog open={confirmDel} onClose={() => setConfirmDel(false)} danger confirmLabel={`Delete ${sel.size}`}
+        title={`Permanently delete ${sel.size} employee${sel.size === 1 ? "" : "s"}?`}
+        body="Their login and profile are removed and this cannot be undone. Anyone with finalized payslips or linked records is skipped; deactivate those instead."
+        onConfirm={async () => {
+          const res = await fetch("/api/employees", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [...sel] }) });
+          const j = await res.json();
+          if (!res.ok) { toast(j.error ?? "Could not delete", "error"); return; }
+          const r = j.results as { name: string; ok: boolean; error?: string }[];
+          const done = r.filter((x) => x.ok).length, failed = r.filter((x) => !x.ok);
+          toast(`${done} deleted${failed.length ? `, ${failed.length} skipped: ${failed.slice(0, 3).map((f) => `${f.name} (${f.error})`).join("; ")}` : ""}`, failed.length ? "error" : undefined);
+          setSel(new Set()); load();
+        }} />
 
       <ImportCsv open={importing} onClose={() => setImporting(false)} offices={offices} onDone={load} />
     </>

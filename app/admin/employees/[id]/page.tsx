@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -30,6 +30,8 @@ export default function EmployeeProfile() {
   const [balances, setBalances] = useState<Balance[]>([]);
   const [reqs, setReqs] = useState<Req[]>([]);
   const [tab, setTab] = useState<"attendance" | "leave" | "profile">("attendance");
+  const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmActive, setConfirmActive] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [tz, setTz] = useState("Asia/Kolkata");
@@ -93,6 +95,7 @@ export default function EmployeeProfile() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setPwOpen(true)}>Reset password</Button>
           <Button variant={p.active ? "outline" : "primary"} size="sm" onClick={() => setConfirmActive(true)}>{p.active ? "Deactivate" : "Reactivate"}</Button>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" />Delete</Button>
         </div>
       </div>
 
@@ -150,6 +153,17 @@ export default function EmployeeProfile() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} danger confirmLabel="Delete permanently"
+        title={`Permanently delete ${p.full_name}?`}
+        body="Their login and profile are removed and this cannot be undone. If they have finalized payslips or linked records, deletion is refused: deactivate them instead."
+        onConfirm={async () => {
+          const r = await fetch("/api/employees", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) });
+          const j = await r.json();
+          const res = j.results?.[0];
+          if (!r.ok || !res?.ok) { toast(res?.error ?? j.error ?? "Could not delete", "error"); return; }
+          toast("Employee deleted"); router.push("/admin/employees");
+        }} />
 
       <ConfirmDialog open={confirmActive} onClose={() => setConfirmActive(false)}
         title={p.active ? `Deactivate ${p.full_name}?` : `Reactivate ${p.full_name}?`}
