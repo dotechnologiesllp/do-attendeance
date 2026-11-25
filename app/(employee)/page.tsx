@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { freshPosition, nearestOffice, useGeolocation, type Office } from "@/lib/geo";
 import { friendlyError } from "@/lib/errors";
@@ -27,7 +27,7 @@ export default function EmployeeHome() {
   const [offset, setOffset] = useState(0);          // server clock − device clock (ms), for the live counter only
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [, tick] = useState(0);
+  const [ticks, tick] = useState(0);
   const geo = useGeolocation();
 
   const load = useCallback(async () => {
@@ -58,6 +58,33 @@ export default function EmployeeHome() {
 
   const inside = !!where && geo.kind === "fix" && where.distance <= where.office.radius_m && geo.accuracy <= where.office.radius_m;
   const lowAccuracy = !!where && geo.kind === "fix" && geo.accuracy > where.office.radius_m;
+
+  // Auto check-out: if the employee is clearly outside the office radius for 30 s while the app is open,
+  // ask the server to close the open session. (A web app cannot track location once it is closed.)
+  const outsideSince = useRef<number | null>(null);
+  const autoBusy = useRef(false);
+  useEffect(() => {
+    const clearlyOutside = isIn && geo.kind === "fix" && !!where
+      && geo.accuracy <= where.office.radius_m && where.distance - geo.accuracy > where.office.radius_m;
+    if (!clearlyOutside || geo.kind !== "fix") { outsideSince.current = null; return; }
+    const now = Date.now();
+    if (outsideSince.current === null) outsideSince.current = now;
+    if (now - outsideSince.current < 30_000 || autoBusy.current) return;
+    autoBusy.current = true;
+    (async () => {
+      try {
+        const { data: r, error } = await supabaseBrowser().rpc("auto_checkout_if_outside", { p_lat: geo.lat, p_lng: geo.lng, p_accuracy: geo.accuracy });
+        if (!error && (r as { closed?: boolean } | null)?.closed) {
+          if (navigator.vibrate) navigator.vibrate(30);
+          toast("You left the office area. Checked out automatically.");
+          await load();
+        }
+      } finally {
+        autoBusy.current = false;
+        outsideSince.current = null;
+      }
+    })();
+  }, [geo, where, isIn, ticks, load, toast]);
 
   // Live worked time = completed sessions (server) + the open session so far.
   // (Recomputed on every render; a 15-second tick keeps it moving.)
